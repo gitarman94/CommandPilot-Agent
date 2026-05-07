@@ -11,28 +11,18 @@ REPO_URL="https://github.com/gitarman94/CommandPilot.git"
 
 CLIENT_BINARY="${APP_DIR}/pilot-agent"
 
-FORCE_INSTALL=false
-UPDATE=false
 VERBOSE=false
 
 echo "CommandPilot Agent Installer"
 
 for arg in "$@"; do
     case "$arg" in
-        --force|--install)
-            FORCE_INSTALL=true
-            ;;
-
-        --update)
-            UPDATE=true
-            ;;
-
         --verbose|-v)
             VERBOSE=true
             ;;
 
         *)
-            echo "Usage: $0 [--install|--force] [--update] [--verbose]"
+            echo "Usage: $0 [--verbose]"
             exit 1
             ;;
     esac
@@ -68,23 +58,6 @@ if [[ -f /etc/os-release ]]; then
     esac
 else
     fail "/etc/os-release missing"
-fi
-
-if [[ "$FORCE_INSTALL" == true ]]; then
-    echo
-    echo "== Cleaning Previous Installation =="
-
-    systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
-    systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
-
-    rm -f "/etc/systemd/system/${SERVICE_NAME}"
-
-    rm -rf "${APP_DIR}"
-    rm -rf "${SRC_DIR}"
-
-    systemctl daemon-reload || true
-
-    pass "Previous installation removed"
 fi
 
 echo
@@ -167,58 +140,50 @@ echo "== Server Configuration =="
 
 SERVER_FILE="${APP_DIR}/server_url.txt"
 
-if [[ "$UPDATE" != true || ! -f "$SERVER_FILE" ]]; then
+echo
+echo "Enter CommandPilot server hostname or IP"
+echo "Examples:"
+echo "  192.168.1.10"
+echo "  commandpilot.local"
+echo "  https://commandpilot.example.com"
+echo
 
-    echo
-    echo "Enter CommandPilot server hostname or IP"
-    echo "Examples:"
-    echo "  192.168.1.10"
-    echo "  commandpilot.local"
-    echo "  https://commandpilot.example.com"
-    echo
-
-    while true; do
-
-        printf "Server: "
-
-        if ! IFS= read -r SERVER_INPUT; then
-            fail "failed reading server address"
-        fi
-
-        SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
-        SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
-
-        if [[ -n "$SERVER_INPUT" ]]; then
-            break
-        fi
-
-        echo
-        echo "[FAIL] Server address required"
-        echo
-
-    done
-
-    if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
-        SERVER_URL="$SERVER_INPUT"
-    else
-        SERVER_URL="http://${SERVER_INPUT}"
-    fi
-
-    if [[ ! "$SERVER_URL" =~ :[0-9]+$ ]]; then
-        SERVER_URL="${SERVER_URL}:8080"
-    fi
-
-    echo "$SERVER_URL" > "$SERVER_FILE"
-
-    pass "Server URL saved"
-
-else
-
-    SERVER_URL=$(cat "$SERVER_FILE")
-
-    pass "Existing server configuration retained"
-
+if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    fail "interactive terminal required"
 fi
+
+while true; do
+    printf "Server: " >/dev/tty
+
+    if ! IFS= read -r SERVER_INPUT </dev/tty; then
+        fail "failed reading server address"
+    fi
+
+    SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
+    SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
+
+    if [[ -n "$SERVER_INPUT" ]]; then
+        break
+    fi
+
+    echo >/dev/tty
+    echo "[FAIL] Server address required" >/dev/tty
+    echo >/dev/tty
+done
+
+if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
+    SERVER_URL="$SERVER_INPUT"
+else
+    SERVER_URL="http://${SERVER_INPUT}"
+fi
+
+if [[ ! "$SERVER_URL" =~ :[0-9]+$ ]]; then
+    SERVER_URL="${SERVER_URL}:8080"
+fi
+
+echo "$SERVER_URL" > "$SERVER_FILE"
+
+pass "Server URL saved"
 
 echo
 echo "== Source =="

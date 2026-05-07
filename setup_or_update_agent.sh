@@ -13,6 +13,13 @@ CLIENT_BINARY="${APP_DIR}/pilot-agent"
 
 VERBOSE=false
 
+cleanup() {
+    rm -rf "${SRC_DIR}"
+    rm -f /tmp/go.tar.gz
+}
+
+trap cleanup EXIT
+
 echo "CommandPilot Agent Installer"
 
 for arg in "$@"; do
@@ -126,8 +133,8 @@ echo
 echo "== Directories =="
 
 mkdir -p "${APP_DIR}"
-mkdir -p "${APP_DIR}/updates"
 mkdir -p "${APP_DIR}/logs"
+mkdir -p "${APP_DIR}/updates"
 
 chmod 755 "${APP_DIR}"
 
@@ -146,16 +153,10 @@ echo "  commandpilot.local"
 echo "  https://commandpilot.example.com"
 echo
 
-if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
-    fail "interactive terminal required"
-fi
-
 while true; do
-    printf "Server: " >/dev/tty
+    printf "Server: "
 
-    if ! IFS= read -r SERVER_INPUT </dev/tty; then
-        fail "failed reading server address"
-    fi
+    IFS= read -r SERVER_INPUT
 
     SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
     SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
@@ -164,9 +165,9 @@ while true; do
         break
     fi
 
-    echo >/dev/tty
-    echo "[FAIL] Server address required" >/dev/tty
-    echo >/dev/tty
+    echo
+    echo "[FAIL] Server address required"
+    echo
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -190,6 +191,13 @@ rm -rf "${SRC_DIR}"
 
 run git clone "$REPO_URL" "$SRC_DIR" \
     || fail "git clone failed"
+
+echo
+echo "=== Repository Layout ==="
+
+find "${SRC_DIR}" -maxdepth 2 | sort
+
+echo
 
 if [[ -f "${SRC_DIR}/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}"
@@ -222,6 +230,8 @@ pass "Build succeeded"
 
 echo
 echo "== Install =="
+
+systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
 
 install -m 755 \
     "${AGENT_SRC}/pilot-agent" \
@@ -290,14 +300,6 @@ pass "Server reachable"
     || fail "server configuration missing"
 
 pass "Configuration persisted"
-
-echo
-echo "== Cleanup =="
-
-rm -rf "${SRC_DIR}"
-rm -f /tmp/go.tar.gz
-
-pass "Cleanup complete"
 
 echo
 echo "======================================"

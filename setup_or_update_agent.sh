@@ -133,8 +133,8 @@ echo
 echo "== Directories =="
 
 mkdir -p "${APP_DIR}"
-mkdir -p "${APP_DIR}/logs"
 mkdir -p "${APP_DIR}/updates"
+mkdir -p "${APP_DIR}/logs"
 
 chmod 755 "${APP_DIR}"
 
@@ -153,10 +153,16 @@ echo "  commandpilot.local"
 echo "  https://commandpilot.example.com"
 echo
 
-while true; do
-    printf "Server: "
+if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    fail "interactive terminal required"
+fi
 
-    IFS= read -r SERVER_INPUT
+while true; do
+    printf "Server: " >/dev/tty
+
+    if ! IFS= read -r SERVER_INPUT </dev/tty; then
+        fail "failed reading server address"
+    fi
 
     SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
     SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
@@ -165,9 +171,9 @@ while true; do
         break
     fi
 
-    echo
-    echo "[FAIL] Server address required"
-    echo
+    echo >/dev/tty
+    echo "[FAIL] Server address required" >/dev/tty
+    echo >/dev/tty
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -192,20 +198,20 @@ rm -rf "${SRC_DIR}"
 run git clone "$REPO_URL" "$SRC_DIR" \
     || fail "git clone failed"
 
-echo
-echo "=== Repository Layout ==="
-
-find "${SRC_DIR}" -maxdepth 2 | sort
-
-echo
+AGENT_SRC=""
 
 if [[ -f "${SRC_DIR}/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}"
 elif [[ -f "${SRC_DIR}/pilot-agent/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}/pilot-agent"
 else
-    fail "pilot-agent source missing"
+    AGENT_SRC="$(find "${SRC_DIR}" -maxdepth 3 -type f -name go.mod -exec dirname {} \; | sort | head -n 1)"
 fi
+
+[[ -n "$AGENT_SRC" && -f "${AGENT_SRC}/go.mod" ]] \
+    || fail "pilot-agent source missing"
+
+echo "Using source: ${AGENT_SRC}"
 
 pass "Repository synced"
 

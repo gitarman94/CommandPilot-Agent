@@ -1,28 +1,26 @@
 Param(
     [string]$ServerUrl,
-    [switch]$Install,
-    [switch]$Update,
     [switch]$Uninstall,
     [switch]$VerboseMode,
     [switch]$Silent
 )
 
-$ErrorActionPreference="Stop"
+$ErrorActionPreference = "Stop"
 
-$GitHubUser="gitarman94"
-$GitHubRepo="CommandPilot"
-$Branch="main"
+$GitHubUser = "gitarman94"
+$GitHubRepo = "CommandPilot"
+$Branch = "main"
 
-$InstallDir="C:\CommandPilot_Agent"
-$BinaryName="pilot-agent.exe"
-$ServiceName="CommandPilotAgent"
+$InstallDir = "C:\CommandPilot_Agent"
+$BinaryName = "pilot-agent.exe"
+$ServiceName = "CommandPilotAgent"
 
-$BinaryUrl="https://github.com/$GitHubUser/$GitHubRepo/raw/$Branch/windows-agent/$BinaryName"
+$BinaryUrl = "https://github.com/$GitHubUser/$GitHubRepo/raw/$Branch/windows-agent/$BinaryName"
 
-$BinaryPath=Join-Path $InstallDir $BinaryName
-$ServerFile=Join-Path $InstallDir "server_url.txt"
-$VersionFile=Join-Path $InstallDir "version.txt"
-$AgentIdFile=Join-Path $InstallDir "agent_id.txt"
+$BinaryPath = Join-Path $InstallDir $BinaryName
+$ServerFile = Join-Path $InstallDir "server_url.txt"
+$VersionFile = Join-Path $InstallDir "version.txt"
+$AgentIdFile = Join-Path $InstallDir "agent_id.txt"
 
 function Write-Stage($msg) {
     if (-not $Silent) {
@@ -52,7 +50,10 @@ function Invoke-Download {
         Write-Host "[DOWNLOAD] $Url"
     }
 
-    Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+    Invoke-WebRequest `
+        -Uri $Url `
+        -OutFile $Destination `
+        -UseBasicParsing
 }
 
 function Get-FileHashString {
@@ -70,13 +71,24 @@ function Uninstall-Agent {
     Write-Stage "Uninstall"
 
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
-        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+
+        Stop-Service `
+            -Name $ServiceName `
+            -Force `
+            -ErrorAction SilentlyContinue
+
         sc.exe delete $ServiceName | Out-Null
+
+        Start-Sleep -Seconds 2
+
         Write-Pass "Windows service removed"
     }
 
     if (Test-Path $InstallDir) {
-        Remove-Item -Path $InstallDir -Recurse -Force
+        Remove-Item `
+            -Path $InstallDir `
+            -Recurse `
+            -Force
     }
 
     Write-Pass "Installation directory removed"
@@ -103,7 +115,10 @@ function Prepare-Directories {
     Write-Stage "Directories"
 
     if (-not (Test-Path $InstallDir)) {
-        New-Item -Path $InstallDir -ItemType Directory | Out-Null
+
+        New-Item `
+            -Path $InstallDir `
+            -ItemType Directory | Out-Null
     }
 
     Write-Pass "Directories ready"
@@ -113,11 +128,11 @@ function Configure-Server {
 
     Write-Stage "Server Configuration"
 
-    if ((-not $ServerUrl) -and (-not (Test-Path $ServerFile))) {
+    if ($Silent -and (-not $ServerUrl)) {
+        Write-Fail "Silent mode requires -ServerUrl"
+    }
 
-        if ($Silent) {
-            Write-Fail "Silent mode requires -ServerUrl"
-        }
+    while ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 
         Write-Host ""
         Write-Host "Enter CommandPilot server hostname or IP"
@@ -127,24 +142,31 @@ function Configure-Server {
         Write-Host "  https://commandpilot.example.com"
         Write-Host ""
 
-        $ServerUrl=Read-Host "Server"
+        $ServerUrl = Read-Host "Server"
+
+        if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
+
+            Write-Host ""
+            Write-Host "[FAIL] Server address required"
+            Write-Host ""
+        }
     }
 
-    if (-not $ServerUrl) {
-        $ServerUrl=Get-Content $ServerFile
-    }
-
-    $ServerUrl=$ServerUrl.Trim()
+    $ServerUrl = $ServerUrl.Trim()
 
     if ($ServerUrl -notmatch '^https?://') {
-        $ServerUrl="http://$ServerUrl"
+        $ServerUrl = "http://$ServerUrl"
     }
 
     if ($ServerUrl -notmatch ':\d+$') {
-        $ServerUrl="$ServerUrl`:8080"
+        $ServerUrl = "$ServerUrl`:8080"
     }
 
-    $ServerUrl | Out-File -FilePath $ServerFile -Encoding ASCII -Force
+    $ServerUrl |
+        Out-File `
+            -FilePath $ServerFile `
+            -Encoding ASCII `
+            -Force
 
     Write-Pass "Server URL saved"
 
@@ -160,7 +182,10 @@ function Initialize-AgentId {
     if (-not (Test-Path $AgentIdFile)) {
 
         [guid]::NewGuid().ToString() |
-            Out-File -FilePath $AgentIdFile -Encoding ASCII -Force
+            Out-File `
+                -FilePath $AgentIdFile `
+                -Encoding ASCII `
+                -Force
 
         Write-Pass "Agent ID created"
     }
@@ -173,24 +198,41 @@ function Install-Binary {
 
     Write-Stage "Binary"
 
-    $TempBinary=Join-Path $env:TEMP "pilot-agent.exe"
+    $TempBinary = Join-Path $env:TEMP "pilot-agent.exe"
 
-    Invoke-Download -Url $BinaryUrl -Destination $TempBinary
+    try {
 
-    $RemoteHash=Get-FileHashString $TempBinary
-    $LocalHash=Get-FileHashString $BinaryPath
+        Invoke-Download `
+            -Url $BinaryUrl `
+            -Destination $TempBinary
 
-    if ($RemoteHash -ne $LocalHash) {
+        if (-not (Test-Path $TempBinary)) {
+            Write-Fail "Binary download failed"
+        }
 
-        Copy-Item -Path $TempBinary -Destination $BinaryPath -Force
+        $RemoteHash = Get-FileHashString $TempBinary
+        $LocalHash = Get-FileHashString $BinaryPath
 
-        Write-Pass "Binary updated"
+        if ($RemoteHash -ne $LocalHash) {
+
+            Copy-Item `
+                -Path $TempBinary `
+                -Destination $BinaryPath `
+                -Force
+
+            Write-Pass "Binary updated"
+        }
+        else {
+            Write-Pass "Binary already current"
+        }
     }
-    else {
-        Write-Pass "Binary already current"
-    }
+    finally {
 
-    Remove-Item -Path $TempBinary -Force -ErrorAction SilentlyContinue
+        Remove-Item `
+            -Path $TempBinary `
+            -Force `
+            -ErrorAction SilentlyContinue
+    }
 }
 
 function Install-Service {
@@ -199,14 +241,17 @@ function Install-Service {
 
     if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
 
-        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+        Stop-Service `
+            -Name $ServiceName `
+            -Force `
+            -ErrorAction SilentlyContinue
 
         sc.exe delete $ServiceName | Out-Null
 
         Start-Sleep -Seconds 2
     }
 
-    $ServiceCommand="`"$BinaryPath`""
+    $ServiceCommand = "`"$BinaryPath`""
 
     sc.exe create `
         $ServiceName `
@@ -221,7 +266,7 @@ function Install-Service {
 
     Start-Sleep -Seconds 3
 
-    $svc=Get-Service $ServiceName
+    $svc = Get-Service $ServiceName
 
     if ($svc.Status -ne "Running") {
         Write-Fail "Service failed to start"
@@ -248,10 +293,10 @@ function Validate-Install {
 
     try {
 
-        $ServerUrl=Get-Content $ServerFile
+        $ConfiguredServer = (Get-Content $ServerFile).Trim()
 
         Invoke-WebRequest `
-            -Uri $ServerUrl `
+            -Uri $ConfiguredServer `
             -UseBasicParsing `
             -TimeoutSec 10 | Out-Null
 
@@ -268,6 +313,7 @@ if ($Uninstall) {
 }
 
 if (-not $Silent) {
+
     Write-Host ""
     Write-Host "======================================"
     Write-Host " CommandPilot Agent Installer"
@@ -283,6 +329,7 @@ Install-Service
 Validate-Install
 
 if (-not $Silent) {
+
     Write-Host ""
     Write-Host "======================================"
     Write-Host " CommandPilot Agent Installed"
@@ -290,5 +337,6 @@ if (-not $Silent) {
     Write-Host "Install Path : $InstallDir"
     Write-Host "Binary       : $BinaryPath"
     Write-Host "Service      : $ServiceName"
+    Write-Host "Server       : $ServerUrl"
     Write-Host "======================================"
 }

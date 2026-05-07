@@ -7,7 +7,7 @@ SERVICE_NAME="pilot-agent.service"
 APP_DIR="/opt/commandpilot-agent"
 SRC_DIR="/tmp/commandpilot-agent-src"
 
-REPO_URL="https://github.com/gitarman94/CommandPilot.git"
+REPO_URL="https://github.com/gitarman94/CommandPilot-Agent.git"
 
 CLIENT_BINARY="${APP_DIR}/pilot-agent"
 
@@ -17,7 +17,6 @@ cleanup() {
     rm -rf "${SRC_DIR}"
     rm -f /tmp/go.tar.gz
 }
-
 trap cleanup EXIT
 
 echo "======================================"
@@ -174,7 +173,7 @@ echo
 
 TTY="/dev/tty"
 
-[[ -r "$TTY" ]] \
+[[ -r "$TTY" && -w "$TTY" ]] \
     || fail "interactive terminal required"
 
 while true; do
@@ -218,13 +217,10 @@ rm -rf "${SRC_DIR}"
 run git clone "$REPO_URL" "$SRC_DIR" \
     || fail "git clone failed"
 
-AGENT_SRC="${SRC_DIR}/pilot-agent"
-
-[[ -d "$AGENT_SRC" ]] \
-    || fail "pilot-agent source missing"
+AGENT_SRC="${SRC_DIR}"
 
 [[ -f "${AGENT_SRC}/go.mod" ]] \
-    || fail "pilot-agent go.mod missing"
+    || fail "go.mod missing"
 
 echo "Using source: ${AGENT_SRC}"
 

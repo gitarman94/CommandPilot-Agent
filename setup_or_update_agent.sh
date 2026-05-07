@@ -88,6 +88,7 @@ echo
 echo "== Go Installation =="
 
 if ! command -v go >/dev/null 2>&1; then
+
     ARCH=$(uname -m)
 
     case "$ARCH" in
@@ -102,7 +103,9 @@ if ! command -v go >/dev/null 2>&1; then
             ;;
     esac
 
-    wget -q "https://go.dev/dl/go1.25.0.linux-${GO_ARCH}.tar.gz" -O /tmp/go.tar.gz \
+    wget -q \
+        "https://go.dev/dl/go1.25.0.linux-${GO_ARCH}.tar.gz" \
+        -O /tmp/go.tar.gz \
         || fail "Go download failed"
 
     rm -rf /usr/local/go
@@ -110,12 +113,14 @@ if ! command -v go >/dev/null 2>&1; then
     tar -C /usr/local -xzf /tmp/go.tar.gz \
         || fail "Go extraction failed"
 
-    echo 'export PATH=$PATH:/usr/local/go/bin' >/etc/profile.d/golang.sh
+    echo 'export PATH=$PATH:/usr/local/go/bin' \
+        >/etc/profile.d/golang.sh
 fi
 
 export PATH=$PATH:/usr/local/go/bin
 
-go version >/dev/null 2>&1 || fail "Go not available"
+go version >/dev/null 2>&1 \
+    || fail "Go not available"
 
 pass "Go ready"
 
@@ -123,7 +128,12 @@ echo
 echo "== User =="
 
 if ! id -u commandpilot >/dev/null 2>&1; then
-    useradd --system --no-create-home --shell /usr/sbin/nologin commandpilot \
+
+    useradd \
+        --system \
+        --no-create-home \
+        --shell /usr/sbin/nologin \
+        commandpilot \
         || fail "failed to create service user"
 fi
 
@@ -133,8 +143,8 @@ echo
 echo "== Directories =="
 
 mkdir -p "${APP_DIR}"
-mkdir -p "${APP_DIR}/updates"
 mkdir -p "${APP_DIR}/logs"
+mkdir -p "${APP_DIR}/updates"
 
 chmod 755 "${APP_DIR}"
 
@@ -153,27 +163,21 @@ echo "  commandpilot.local"
 echo "  https://commandpilot.example.com"
 echo
 
-if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
-    fail "interactive terminal required"
-fi
-
 while true; do
-    printf "Server: " >/dev/tty
 
-    if ! IFS= read -r SERVER_INPUT </dev/tty; then
-        fail "failed reading server address"
-    fi
+    printf "Server: "
 
-    SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
-    SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
+    IFS= read -r SERVER_INPUT
+
+    SERVER_INPUT="$(echo "$SERVER_INPUT" | xargs)"
 
     if [[ -n "$SERVER_INPUT" ]]; then
         break
     fi
 
-    echo >/dev/tty
-    echo "[FAIL] Server address required" >/dev/tty
-    echo >/dev/tty
+    echo
+    echo "[FAIL] Server address required"
+    echo
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -202,13 +206,26 @@ AGENT_SRC=""
 
 if [[ -f "${SRC_DIR}/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}"
+
 elif [[ -f "${SRC_DIR}/pilot-agent/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}/pilot-agent"
+
 else
-    AGENT_SRC="$(find "${SRC_DIR}" -maxdepth 3 -type f -name go.mod -exec dirname {} \; | sort | head -n 1)"
+
+    FOUND_GOMOD=$(
+        find "${SRC_DIR}" \
+            -maxdepth 3 \
+            -type f \
+            -name go.mod \
+            | head -n 1
+    )
+
+    if [[ -n "$FOUND_GOMOD" ]]; then
+        AGENT_SRC="$(dirname "$FOUND_GOMOD")"
+    fi
 fi
 
-[[ -n "$AGENT_SRC" && -f "${AGENT_SRC}/go.mod" ]] \
+[[ -n "$AGENT_SRC" ]] \
     || fail "pilot-agent source missing"
 
 echo "Using source: ${AGENT_SRC}"
@@ -220,7 +237,8 @@ echo "== Build =="
 
 cd "$AGENT_SRC"
 
-run go mod tidy || fail "go mod tidy failed"
+run go mod tidy \
+    || fail "go mod tidy failed"
 
 rm -f "${AGENT_SRC}/pilot-agent"
 

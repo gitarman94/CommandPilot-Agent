@@ -99,7 +99,6 @@ echo
 echo "== Go Installation =="
 
 if ! command -v go >/dev/null 2>&1; then
-
     ARCH=$(uname -m)
 
     case "$ARCH" in
@@ -179,21 +178,22 @@ TTY="/dev/tty"
     || fail "interactive terminal required"
 
 while true; do
+    printf "Server: " >"$TTY"
 
-    printf "Server: " > "$TTY"
+    if ! IFS= read -r SERVER_INPUT <"$TTY"; then
+        fail "failed reading server address"
+    fi
 
-    IFS= read -r SERVER_INPUT < "$TTY"
-
-    SERVER_INPUT="$(printf '%s' "$SERVER_INPUT" | xargs)"
+    SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
+    SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
 
     if [[ -n "$SERVER_INPUT" ]]; then
         break
     fi
 
-    echo "" > "$TTY"
-    echo "[FAIL] Server address required" > "$TTY"
-    echo "" > "$TTY"
-
+    echo >"$TTY"
+    echo "[FAIL] Server address required" >"$TTY"
+    echo >"$TTY"
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -218,29 +218,13 @@ rm -rf "${SRC_DIR}"
 run git clone "$REPO_URL" "$SRC_DIR" \
     || fail "git clone failed"
 
-AGENT_SRC=""
+AGENT_SRC="${SRC_DIR}/pilot-agent"
 
-if [[ -f "${SRC_DIR}/go.mod" ]]; then
-    AGENT_SRC="${SRC_DIR}"
-fi
-
-if [[ -z "$AGENT_SRC" ]]; then
-    if [[ -f "${SRC_DIR}/pilot-agent/go.mod" ]]; then
-        AGENT_SRC="${SRC_DIR}/pilot-agent"
-    fi
-fi
-
-if [[ -z "$AGENT_SRC" ]]; then
-
-    FOUND_GOMOD=$(find "${SRC_DIR}" -maxdepth 3 -type f -name go.mod | head -n 1)
-
-    if [[ -n "$FOUND_GOMOD" ]]; then
-        AGENT_SRC="$(dirname "$FOUND_GOMOD")"
-    fi
-fi
-
-[[ -n "$AGENT_SRC" ]] \
+[[ -d "$AGENT_SRC" ]] \
     || fail "pilot-agent source missing"
+
+[[ -f "${AGENT_SRC}/go.mod" ]] \
+    || fail "pilot-agent go.mod missing"
 
 echo "Using source: ${AGENT_SRC}"
 
@@ -338,14 +322,6 @@ pass "Server reachable"
     || fail "server configuration missing"
 
 pass "Configuration persisted"
-
-echo
-echo "== Cleanup =="
-
-rm -rf "${SRC_DIR}"
-rm -f /tmp/go.tar.gz
-
-pass "Cleanup complete"
 
 echo
 echo "======================================"

@@ -22,12 +22,15 @@ for arg in "$@"; do
         --force|--install)
             FORCE_INSTALL=true
             ;;
+
         --update)
             UPDATE=true
             ;;
+
         --verbose|-v)
             VERBOSE=true
             ;;
+
         *)
             echo "Usage: $0 [--install|--force] [--update] [--verbose]"
             exit 1
@@ -174,11 +177,17 @@ if [[ "$UPDATE" != true || ! -f "$SERVER_FILE" ]]; then
     echo "  https://commandpilot.example.com"
     echo
 
-    read -rp "Server: " SERVER_INPUT
+    SERVER_INPUT=""
 
-    if [[ -z "$SERVER_INPUT" ]]; then
-        fail "Server address required"
-    fi
+    while [[ -z "$SERVER_INPUT" ]]; do
+        read -r -p "Server: " SERVER_INPUT
+
+        if [[ -z "$SERVER_INPUT" ]]; then
+            echo
+            echo "[FAIL] Server address required"
+            echo
+        fi
+    done
 
     if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
         SERVER_URL="$SERVER_INPUT"
@@ -193,9 +202,13 @@ if [[ "$UPDATE" != true || ! -f "$SERVER_FILE" ]]; then
     echo "$SERVER_URL" > "$SERVER_FILE"
 
     pass "Server URL saved"
+
 else
+
     SERVER_URL=$(cat "$SERVER_FILE")
+
     pass "Existing server configuration retained"
+
 fi
 
 echo

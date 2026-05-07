@@ -177,16 +177,25 @@ if [[ "$UPDATE" != true || ! -f "$SERVER_FILE" ]]; then
     echo "  https://commandpilot.example.com"
     echo
 
-    SERVER_INPUT=""
+    while true; do
 
-    while [[ -z "$SERVER_INPUT" ]]; do
-        read -r -p "Server: " SERVER_INPUT
+        printf "Server: "
 
-        if [[ -z "$SERVER_INPUT" ]]; then
-            echo
-            echo "[FAIL] Server address required"
-            echo
+        if ! IFS= read -r SERVER_INPUT; then
+            fail "failed reading server address"
         fi
+
+        SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
+        SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
+
+        if [[ -n "$SERVER_INPUT" ]]; then
+            break
+        fi
+
+        echo
+        echo "[FAIL] Server address required"
+        echo
+
     done
 
     if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then

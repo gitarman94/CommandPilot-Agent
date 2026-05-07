@@ -113,14 +113,12 @@ if ! command -v go >/dev/null 2>&1; then
     tar -C /usr/local -xzf /tmp/go.tar.gz \
         || fail "Go extraction failed"
 
-    echo 'export PATH=$PATH:/usr/local/go/bin' \
-        >/etc/profile.d/golang.sh
+    echo 'export PATH=$PATH:/usr/local/go/bin' >/etc/profile.d/golang.sh
 fi
 
 export PATH=$PATH:/usr/local/go/bin
 
-go version >/dev/null 2>&1 \
-    || fail "Go not available"
+go version >/dev/null 2>&1 || fail "Go not available"
 
 pass "Go ready"
 
@@ -128,7 +126,6 @@ echo
 echo "== User =="
 
 if ! id -u commandpilot >/dev/null 2>&1; then
-
     useradd \
         --system \
         --no-create-home \
@@ -163,21 +160,27 @@ echo "  commandpilot.local"
 echo "  https://commandpilot.example.com"
 echo
 
+if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    fail "interactive terminal required"
+fi
+
 while true; do
+    printf "Server: " >/dev/tty
 
-    printf "Server: "
+    if ! IFS= read -r SERVER_INPUT </dev/tty; then
+        fail "failed reading server address"
+    fi
 
-    IFS= read -r SERVER_INPUT
-
-    SERVER_INPUT="$(echo "$SERVER_INPUT" | xargs)"
+    SERVER_INPUT="${SERVER_INPUT#"${SERVER_INPUT%%[![:space:]]*}"}"
+    SERVER_INPUT="${SERVER_INPUT%"${SERVER_INPUT##*[![:space:]]}"}"
 
     if [[ -n "$SERVER_INPUT" ]]; then
         break
     fi
 
-    echo
-    echo "[FAIL] Server address required"
-    echo
+    echo >/dev/tty
+    echo "[FAIL] Server address required" >/dev/tty
+    echo >/dev/tty
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -206,27 +209,23 @@ AGENT_SRC=""
 
 if [[ -f "${SRC_DIR}/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}"
-
 elif [[ -f "${SRC_DIR}/pilot-agent/go.mod" ]]; then
     AGENT_SRC="${SRC_DIR}/pilot-agent"
-
 else
-
-    FOUND_GOMOD=$(
+    FOUND_GOMOD="$(
         find "${SRC_DIR}" \
             -maxdepth 3 \
             -type f \
             -name go.mod \
-            | head -n 1
-    )
+            -print -quit
+    )"
 
     if [[ -n "$FOUND_GOMOD" ]]; then
         AGENT_SRC="$(dirname "$FOUND_GOMOD")"
     fi
 fi
 
-[[ -n "$AGENT_SRC" ]] \
-    || fail "pilot-agent source missing"
+[[ -n "$AGENT_SRC" ]] || fail "pilot-agent source missing"
 
 echo "Using source: ${AGENT_SRC}"
 
@@ -237,16 +236,14 @@ echo "== Build =="
 
 cd "$AGENT_SRC"
 
-run go mod tidy \
-    || fail "go mod tidy failed"
+run go mod tidy || fail "go mod tidy failed"
 
 rm -f "${AGENT_SRC}/pilot-agent"
 
 run go build -o pilot-agent . \
     || fail "go build failed"
 
-[[ -f "${AGENT_SRC}/pilot-agent" ]] \
-    || fail "compiled binary missing"
+[[ -f "${AGENT_SRC}/pilot-agent" ]] || fail "compiled binary missing"
 
 chmod +x "${AGENT_SRC}/pilot-agent"
 
@@ -264,8 +261,7 @@ install -m 755 \
 
 chown -R commandpilot:commandpilot "${APP_DIR}"
 
-[[ -x "${CLIENT_BINARY}" ]] \
-    || fail "binary not executable"
+[[ -x "${CLIENT_BINARY}" ]] || fail "binary not executable"
 
 pass "Binary installed"
 

@@ -20,7 +20,12 @@ cleanup() {
 
 trap cleanup EXIT
 
-echo "CommandPilot Agent Installer"
+echo "======================================"
+echo " CommandPilot Agent Installer"
+echo "======================================"
+echo "Options:"
+echo "  --verbose, -v   Show command output"
+echo "======================================"
 
 for arg in "$@"; do
     case "$arg" in
@@ -36,10 +41,14 @@ done
 
 run() {
     if [[ "$VERBOSE" == true ]]; then
+        echo
         echo "[RUN] $*"
         "$@"
     else
-        "$@" >/dev/null 2>&1
+        OUTPUT="$("$@" 2>&1)" || {
+            echo "$OUTPUT"
+            return 1
+        }
     fi
 }
 
@@ -71,7 +80,8 @@ echo "== Dependencies =="
 
 export DEBIAN_FRONTEND=noninteractive
 
-run apt-get update -y || fail "apt update failed"
+run apt-get update -y \
+    || fail "apt update failed"
 
 run apt-get install -y \
     curl \
@@ -80,7 +90,8 @@ run apt-get install -y \
     unzip \
     sqlite3 \
     build-essential \
-    ca-certificates || fail "dependency install failed"
+    ca-certificates \
+    || fail "dependency install failed"
 
 pass "Dependencies installed"
 
@@ -103,14 +114,14 @@ if ! command -v go >/dev/null 2>&1; then
             ;;
     esac
 
-    wget -q \
+    run wget -q \
         "https://go.dev/dl/go1.25.0.linux-${GO_ARCH}.tar.gz" \
         -O /tmp/go.tar.gz \
         || fail "Go download failed"
 
     rm -rf /usr/local/go
 
-    tar -C /usr/local -xzf /tmp/go.tar.gz \
+    run tar -C /usr/local -xzf /tmp/go.tar.gz \
         || fail "Go extraction failed"
 
     echo 'export PATH=$PATH:/usr/local/go/bin' \
@@ -164,7 +175,8 @@ echo
 
 TTY="/dev/tty"
 
-[[ -r "$TTY" ]] || fail "interactive terminal required"
+[[ -r "$TTY" ]] \
+    || fail "interactive terminal required"
 
 while true; do
 
@@ -181,6 +193,7 @@ while true; do
     echo "" > "$TTY"
     echo "[FAIL] Server address required" > "$TTY"
     echo "" > "$TTY"
+
 done
 
 if [[ "$SERVER_INPUT" =~ ^https?:// ]]; then
@@ -218,6 +231,7 @@ if [[ -z "$AGENT_SRC" ]]; then
 fi
 
 if [[ -z "$AGENT_SRC" ]]; then
+
     FOUND_GOMOD=$(find "${SRC_DIR}" -maxdepth 3 -type f -name go.mod | head -n 1)
 
     if [[ -n "$FOUND_GOMOD" ]]; then
@@ -324,6 +338,14 @@ pass "Server reachable"
     || fail "server configuration missing"
 
 pass "Configuration persisted"
+
+echo
+echo "== Cleanup =="
+
+rm -rf "${SRC_DIR}"
+rm -f /tmp/go.tar.gz
+
+pass "Cleanup complete"
 
 echo
 echo "======================================"

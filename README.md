@@ -133,19 +133,19 @@ Installer:
 ## Standard Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPIlot-Agent/main/setup_or_update_agent.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPilot-Agent/main/setup_or_update_agent.sh | bash
 ```
 
 ## Silent Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPIlot-Agent/main/setup_or_update_agent.sh | bash -s -- --silent --server 192.168.1.10
+curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPilot-Agent/main/setup_or_update_agent.sh | bash -s -- --silent --server 192.168.1.10
 ```
 
 ## Upgrade Existing Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPIlot-Agent/main/setup_or_update_agent.sh | bash -s -- --upgrade
+curl -fsSL https://raw.githubusercontent.com/gitarman94/CommandPilot-Agent/main/setup_or_update_agent.sh | bash -s -- --upgrade
 ```
 
 ---

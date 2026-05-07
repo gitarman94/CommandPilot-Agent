@@ -20,7 +20,6 @@ for arg in "$@"; do
         --verbose|-v)
             VERBOSE=true
             ;;
-
         *)
             echo "Usage: $0 [--verbose]"
             exit 1
@@ -82,7 +81,6 @@ echo
 echo "== Go Installation =="
 
 if ! command -v go >/dev/null 2>&1; then
-
     ARCH=$(uname -m)
 
     case "$ARCH" in
@@ -193,9 +191,13 @@ rm -rf "${SRC_DIR}"
 run git clone "$REPO_URL" "$SRC_DIR" \
     || fail "git clone failed"
 
-AGENT_SRC="${SRC_DIR}/pilot-agent"
-
-[[ -d "$AGENT_SRC" ]] || fail "pilot-agent source missing"
+if [[ -f "${SRC_DIR}/go.mod" ]]; then
+    AGENT_SRC="${SRC_DIR}"
+elif [[ -f "${SRC_DIR}/pilot-agent/go.mod" ]]; then
+    AGENT_SRC="${SRC_DIR}/pilot-agent"
+else
+    fail "pilot-agent source missing"
+fi
 
 pass "Repository synced"
 

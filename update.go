@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
+	"net/url"
+	"strings"
+	"time"
 )
 
 type UpdateInfo struct {
@@ -14,62 +16,79 @@ type UpdateInfo struct {
 }
 
 func StartUpdateLoop(cfg Config) {
-	for {
+	checkForUpdate(cfg)
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
 		checkForUpdate(cfg)
-		sleepSeconds(300)
 	}
 }
 
 func checkForUpdate(cfg Config) {
-	resp, err := http.Get(
-		cfg.ServerURL + "/api/agent/update?version=" + cfg.Version,
-	)
+	endpoint := strings.TrimRight(cfg.ServerURL, "/") + "/api/agent/update/check?version=" + url.QueryEscape(cfg.Version)
 
+	resp, err := http.Get(endpoint)
 	if err != nil {
+		log.Printf("update check failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
 		return
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("update check returned: %s", resp.Status)
 		return
 	}
 
 	var update UpdateInfo
-
 	if err := json.NewDecoder(resp.Body).Decode(&update); err != nil {
+		log.Printf("update decode failed: %v", err)
 		return
 	}
 
-	if update.Version == "" || update.Version == cfg.Version {
+	if update.Version == "" || update.Version == cfg.Version || update.URL == "" {
 		return
 	}
 
-	log.Printf("updating to %s", update.Version)
-
-	downloadAndInstall(update.URL)
+	log.Printf("update available: %s -> %s", cfg.Version, update.Version)
+	downloadAndInstall(cfg, update)
 }
 
-func downloadAndInstall(url string) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return
+func downloadAndInstall(cfg Config, update UpdateInfo) {
+	target := update.URL
+	if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
+		target = strings.TrimRight(cfg.ServerURL, "/") + "/" + strings.TrimLeft(target, "/")
 	}
 
+	resp, err := http.Get(target)
+	if err != nil {
+		log.Printf("update download failed: %v", err)
+		return
+	}
 	defer resp.Body.Close()
 
-	tmp := "/tmp/pilot-agent-update.zip"
-
-	f, err := os.Create(tmp)
-	if err != nil {
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("update download returned: %s", resp.Status)
 		return
 	}
 
-	defer f.Close()
+	tmp := "/tmp/pilot-agent-update.bin"
+	out, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("update read failed: %v", err)
+		return
+	}
 
-	io.Copy(f, resp.Body)
+	if err := os.WriteFile(tmp, out, 0600); err != nil {
+		log.Printf("update write failed: %v", err)
+		return
+	}
 
 	log.Printf("update downloaded: %s", tmp)
-
-	// hook installer here
+	log.Printf("install hook not yet implemented")
 }

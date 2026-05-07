@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"time"
 )
 
 func main() {
@@ -10,14 +9,11 @@ func main() {
 
 	log.Printf("pilot-agent starting")
 	log.Printf("server=%s", cfg.ServerURL)
+	log.Printf("agent_id=%s", cfg.AgentID)
+	log.Printf("version=%s", cfg.Version)
 
-	go StartTelemetryLoop(cfg)
-	go StartCommandLoop(cfg)
+	go StartHeartbeatLoop(cfg)
 	go StartUpdateLoop(cfg)
 
 	select {}
-}
-
-func sleepSeconds(v int) {
-	time.Sleep(time.Duration(v) * time.Second)
 }
